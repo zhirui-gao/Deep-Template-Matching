@@ -60,7 +60,7 @@ class Linemod2dDataset(utils.data.Dataset):
                  root_dir,
                  txt_path=None, # image id to train/test
                  mode='train',
-                 img_resize=512,
+                 img_resize=256,
                  augment_fn=None,
                  **kwargs):
         super().__init__()
@@ -71,6 +71,7 @@ class Linemod2dDataset(utils.data.Dataset):
             txt_path = os.path.join(txt_path, 'img_list.txt')
         self.txt_path = txt_path
         # prepare data_names
+        print('root_path', root_dir)
         if txt_path:
             self.data_names = np.loadtxt(txt_path, dtype=np.str_)
         else:
@@ -94,13 +95,15 @@ class Linemod2dDataset(utils.data.Dataset):
 
         image0 = cv2.imread(img_name0, cv2.IMREAD_GRAYSCALE)
 
-
         image1, mask1, scale1 = read_megadepth_gray(
             img_name1, self.img_resize, None, True, None)
 
         image0 = cv2.resize(image0, dsize=(0, 0), fx=1 / float(scale1[0]), fy=1 / float(scale1[1]))
+        if image0.shape[0]>self.img_resize or image0.shape[1]>self.img_resize:
+            image0 = image0[0:min(image0.shape[0],self.img_resize), 0:min(image0.shape[1],self.img_resize)]
 
         image0, mask0 = pad_bottom_right(image0, self.img_resize, ret_mask=True)
+        image0 = cv2.Canny(image0, 30, 100)
         image0 = torch.from_numpy(image0).float()[None] / 255  # (h, w) -> (1, h, w) and normalized
         data = {
             'image0': image0,  # (1, h, w)

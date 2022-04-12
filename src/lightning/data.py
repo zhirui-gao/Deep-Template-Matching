@@ -181,10 +181,10 @@ class MultiSceneDataModule(pl.LightningDataModule):
                              desc=f'[rank:{self.rank}] loading {mode} datasets',
                              disable=int(self.rank) != 0):
             npz_path = osp.join(npz_dir, npz_name)
-            data_root = osp.join(data_root, npz_name)
+            data_root_name = osp.join(data_root, npz_name)
             if data_source == 'linemod_2d':
                 datasets.append(
-                    Linemod2dDataset(data_root,
+                    Linemod2dDataset(data_root_name,
                                    npz_path,
                                    mode=mode,
                                    img_resize=self.img_resize,
@@ -201,40 +201,60 @@ class MultiSceneDataModule(pl.LightningDataModule):
             npz_dir,
             mode
     ):
+        # augment_fn = self.augment_fn if mode == 'train' else None
+        # data_source = self.trainval_data_source if mode in ['train', 'val'] else self.test_data_source
+        #
+        # with tqdm_joblib(tqdm(desc=f'[rank:{self.rank}] loading {mode} datasets',
+        #                       total=len(npz_names), disable=int(self.rank) != 0)):
+        #     if data_source == 'linemod_2d':
+        #         print(math.floor(len(os.sched_getaffinity(0)) * 0.9 / comm.get_local_size()))
+        #         datasets = Parallel(n_jobs=math.floor(len(os.sched_getaffinity(0)) * 0.9 / comm.get_local_size()))(
+        #             delayed(lambda x: _build_dataset(
+        #                 Linemod2dDataset,
+        #                 osp.join(data_root, x),
+        #                 osp.join(npz_dir, x),
+        #                 mode=mode,
+        #                 augment_fn=augment_fn))(name)
+        #             for name in npz_names)
+        #     else:
+        #         raise ValueError(f'Unknown dataset: {data_source}')
+        # return ConcatDataset(datasets)
+
         augment_fn = self.augment_fn if mode == 'train' else None
         data_source = self.trainval_data_source if mode in ['train', 'val'] else self.test_data_source
 
         with tqdm_joblib(tqdm(desc=f'[rank:{self.rank}] loading {mode} datasets',
                               total=len(npz_names), disable=int(self.rank) != 0)):
             if data_source == 'linemod_2d':
-                print(math.floor(len(os.sched_getaffinity(0)) * 0.9 / comm.get_local_size()))
-                datasets = Parallel(n_jobs=math.floor(len(os.sched_getaffinity(0)) * 0.9 / comm.get_local_size()))(
+                datasets = Parallel(math.floor(len(os.sched_getaffinity(0)) * 0.9 / comm.get_local_size()))(
                     delayed(lambda x: _build_dataset(
                         Linemod2dDataset,
                         osp.join(data_root, x),
                         osp.join(npz_dir, x),
                         mode=mode,
+                        img_resize=self.img_resize,
                         augment_fn=augment_fn))(name)
                     for name in npz_names)
             else:
                 raise ValueError(f'Unknown dataset: {data_source}')
         return ConcatDataset(datasets)
 
+
     def train_dataloader(self):
         """ Build training dataloader for ScanNet / MegaDepth. """
         # assert self.data_sampler in ['scene_balance']
         logger.info(
             f'[rank:{self.rank}/{self.world_size}]: Train Sampler and DataLoader re-init (should not re-init between epochs!).')
-        if self.data_sampler == 'scene_balance':
-            sampler = RandomConcatSampler(self.train_dataset,
-                                          self.n_samples_per_subset,
-                                          self.subset_replacement,
-                                          self.shuffle, self.repeat, self.seed)
-        else:
-            sampler = None
+        # if self.data_sampler == 'scene_balance':
+        #     sampler = RandomConcatSampler(self.train_dataset,
+        #                                   self.n_samples_per_subset,
+        #                                   self.subset_replacement,
+        #                                   self.shuffle, self.repeat, self.seed)
+        # else:
+        #     sampler = None
         # TODO: for muti-scene ,we should take sampler
         sampler = None
-        dataloader = DataLoader(self.train_dataset, sampler=sampler, **self.train_loader_params)
+        dataloader = DataLoader(self.train_dataset, sampler=sampler,shuffle=True, **self.train_loader_params)
         return dataloader
 
     def val_dataloader(self):

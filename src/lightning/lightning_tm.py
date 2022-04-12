@@ -30,15 +30,18 @@ class PL_Tm(pl.LightningModule):
         self.loss = TmLoss(_config)
         # Pretrained weights
         if pretrained_ckpt_backbone:
-            pre_state_dict = torch.load(pretrained_ckpt_backbone, map_location='cpu')['model_state_dict']
+            if _config['tm']['superpoint']['name']=='SuperPointNet_gauss2':
+                pre_state_dict = torch.load(pretrained_ckpt_backbone, map_location='cpu')['model_state_dict']
+            else:
+                pre_state_dict = torch.load(pretrained_ckpt_backbone, map_location='cpu')
             model_dict = self.Tm.state_dict()
             for k, v in pre_state_dict.items():
                 if 'backbone.'+k in model_dict.keys() and v.shape == model_dict['backbone.'+k].shape:
                     model_dict['backbone.'+k] = v
             self.Tm.load_state_dict(model_dict, strict=True)
             logger.info(f"Load \'{pretrained_ckpt_backbone}\' as pretrained checkpoint_backbone")
-
-        if pretrain_ckpt:
+        print('pretrain_ckpt',pretrain_ckpt)
+        if pretrain_ckpt and len(pretrain_ckpt)>4:
             pre_state_dict = torch.load(pretrain_ckpt, map_location='cpu')['state_dict']
             model_dict = self.Tm.state_dict()
             for k, v in pre_state_dict.items():
@@ -48,15 +51,15 @@ class PL_Tm(pl.LightningModule):
             logger.info(f"Load \'{pretrain_ckpt}\' as pretrained checkpoint")
 
 
-        #
-        # to_freeze_dict = ['backbone']
-        # # loftr
-        # for (name, param) in self.Tm.named_parameters():
-        #     if name.split('.')[0] in to_freeze_dict:
-        #         print(name, ': freezeed')
-        #         param.requires_grad = False
-        #     else:
-        #         pass
+
+        to_freeze_dict = ['backbone']
+        # loftr
+        for (name, param) in self.Tm.named_parameters():
+            if name.split('.')[0] in to_freeze_dict:
+                print(name, ': freezeed')
+                param.requires_grad = False
+            else:
+                pass
         # Testing
         self.dump_dir = dump_dir
 

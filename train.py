@@ -33,8 +33,12 @@ def parse_args():
         '--pin_memory', type=lambda x: bool(strtobool(x)),
         nargs='?', default=True, help='whether loading data to pinned memory or not')
     parser.add_argument(
-        '--ckpt_path_backbone', type=str, default='./pretrained/superPointNet_170000_checkpoint.pth.tar',
+        '--ckpt_path_backbone', type=str, default='./pretrained/superpoint_v1.pth', #superpoint_v1.pth  superPointNet_170000_checkpoint.pth.tar
         help='pretrained checkpoint path')
+    parser.add_argument(
+        '--ckpt_path', type=str, default='',
+        help='pretrained checkpoint path')
+
     parser.add_argument(
         '--disable_ckpt', action='store_true',
         help='disable checkpoint saving (useful for debugging).')
@@ -70,7 +74,7 @@ def main():
 
     # lightning module
     profiler = build_profiler(args.profiler_name)
-    model = PL_Tm(config, pretrained_ckpt_backbone=args.ckpt_path_backbone, profiler=profiler)
+    model = PL_Tm(config, pretrained_ckpt_backbone=args.ckpt_path_backbone, pretrain_ckpt=args.ckpt_path, profiler=profiler)
 
     loguru_logger.info(f"TM LightningModule initialized!")
 
@@ -95,6 +99,18 @@ def main():
     # TensorBoard Logger
     logger = TensorBoardLogger(save_dir='logs/tb_logs', name=args.exp_name, default_hp_metric=False)
     ckpt_dir = Path(logger.log_dir) / 'checkpoints'
+    # save network graph
+    # batch_test = {}
+    # img0 = torch.rand((1, 1, 256, 256))
+    # img1 = torch.rand((1, 1, 256, 256))
+    # data = {
+    #     'image0': img0,  # (1, h, w)
+    #     'image1': img1,
+    #     'dataset_name': 'linemod_2d'
+    #
+    # }
+    # logger.experiment.add_graph(model, data)
+
 
     # Callbacks
     # TODO: update ModelCheckpoint to monitor multiple metrics

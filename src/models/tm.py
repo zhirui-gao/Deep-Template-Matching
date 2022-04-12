@@ -1,5 +1,6 @@
 from src.models.SuperPointNet_gs import SuperPointNet_gauss2
 import torch
+from src.models.superpoint_glue import SuperPoint_glue
 import torch.nn as nn
 from einops.einops import rearrange
 import os
@@ -18,8 +19,14 @@ class Tm(nn.Module):
         self.patch_size = self.config['tm']['superpoint']['patch_size']
         self.nms_dist = self.config['tm']['superpoint']['nms_dist'],
         self.conf_thresh = self.config['tm']['superpoint']['conf_thresh']
+        self.backbone_name = self.config['tm']['superpoint']['name']
         # Modules
-        self.backbone = SuperPointNet_gauss2(config['tm']['superpoint'])
+        if self.backbone_name =='SuperPointNet_gauss2':
+            self.backbone = SuperPointNet_gauss2(config['tm']['superpoint'])
+        elif self.backbone_name == 'superpoint_glue':
+            self.backbone = SuperPoint_glue(config['tm']['superpoint'])
+        else:
+            raise Exception('please choose the right backbone.')
         self.pos_encoding = PositionEncodingSine_line(d_model=config['tm']['superpoint']['block_dims'][-1],
                                                                             temp_bug_fix=True)
 
@@ -47,29 +54,34 @@ class Tm(nn.Module):
           semi: Output point pytorch tensor shaped N x 65 x H/8 x W/8.
           desc: Output descriptor pytorch tensor shaped N x 256 x H/8 x W/8.
         """
-        # TODO:support
-        # if data['hw0'] == data['hw1']:  # faster & better BN convergence
-        #     output = self.backbone(torch.cat([data['image0'], data['image1']], dim=0))
-        #     semi, desc = output['semi'], output['desc']
-        #     (semi0, semi1), (desc0, desc1) = semi.split(data['bs']), desc.split(data['bs'])
-        # else:  # handle different input shapes
-        output0,  output1 = self.backbone(data['image0']), self.backbone(data['image1'])
-        semi0, desc0 = output0['semi'], output0['desc']
-        semi1, desc1 = output1['semi'], output1['desc']
-        # 2. process the semi and desc from the super point net
+        if self.backbone_name == 'SuperPointNet_gauss2':
+            # TODO:support
+            # if data['hw0'] == data['hw1']:  # faster & better BN convergence
+            #     output = self.backbone(torch.cat([data['image0'], data['image1']], dim=0))
+            #     semi, desc = output['semi'], output['desc']
+            #     (semi0, semi1), (desc0, desc1) = semi.split(data['bs']), desc.split(data['bs'])
+            # else:  # handle different input shapes
+            output0,  output1 = self.backbone(data['image0']), self.backbone(data['image1'])
+            semi0, desc0 = output0['semi'], output0['desc']
+            semi1, desc1 = output1['semi'], output1['desc']
+            # 2. process the semi and desc from the super point net
 
-        params = {
-            'out_num_points': self.config['tm']['superpoint']['out_num_points'],
-            'patch_size': self.config['tm']['superpoint']['patch_size'],
-            'device': data['image0'].device,
-            'nms_dist': self.config['tm']['superpoint']['nms_dist'],
-            'conf_thresh': self.config['tm']['superpoint']['conf_thresh']
-        }
-        sp_processer = SuperPointNet_process(**params)
-        outs_post0 = self.backbone.process_output(sp_processer, output0)
-        outs_post1 = self.backbone.process_output(sp_processer, output1, choice=False)
+            params = {
+                'out_num_points': self.config['tm']['superpoint']['out_num_points'],
+                'patch_size': self.config['tm']['superpoint']['patch_size'],
+                'device': data['image0'].device,
+                'nms_dist': self.config['tm']['superpoint']['nms_dist'],
+                'conf_thresh': self.config['tm']['superpoint']['conf_thresh']
+            }
+            sp_processer = SuperPointNet_process(**params)
+            outs_post0 = self.backbone.process_output(sp_processer, output0)
+            outs_post1 = self.backbone.process_output(sp_processer, output1, choice=False)
+        elif self.backbone_name == 'superpoint_glue':
+            outs_post0, outs_post1 = self.backbone(data['image0']), self.backbone(data['image1'],choose=False)
 
-        self.draw_keypoint_two(outs_post0, outs_post1,data)  # self.draw_keypoint(outs_post,data)
+
+
+        # self.draw_keypoint_two(outs_post0, outs_post1,data)  # self.draw_keypoint(outs_post,data)
 
         # 3. positoin encoding
         pos0 = outs_post0['pts_int'] + outs_post0['pts_offset']
@@ -145,8 +157,8 @@ class Tm(nn.Module):
         pts_offset.append(outs_post1['pts_offset'])
         pts_desc.append(outs_post1['pts_desc'])
 
-        print(pts_int[1])
-        print(pts_int[0])
+        # print(pts_int[1])
+        # print(pts_int[0])
         for i in range(2):
             img = draw_keypoints(toNumpy(data["image" + f"{i}"].squeeze()),
                                  toNumpy((pts_int[i] + pts_offset[i]).squeeze()).transpose())

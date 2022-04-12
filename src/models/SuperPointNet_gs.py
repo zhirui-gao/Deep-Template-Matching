@@ -95,7 +95,6 @@ class SuperPointNet_gauss2(torch.nn.Module):
         # flatten
         heatmap = flattenDetection(semi)  # N x 65 x H/8 x W/8 -> [batch_size, 1, H, W]
         if choice:
-
             # nms
             heatmap_nms_batch = sp_processer.heatmap_to_nms(heatmap, tensor=True)
             # extract offsets

@@ -10,11 +10,11 @@ class SuperPointNet_process(object):
 
     def __init__(self, **config):
         # N=500, patch_size=5, device='cuda:0'
-        self.out_num_points = config.get('out_num_points', 500)
-        self.patch_size = config.get('patch_size', 5)
+        self.out_num_points = config.get('out_num_points', config['out_num_points'])
+        self.patch_size = config.get('patch_size', config['patch_size'])
         self.device = config.get('device', 'cuda:0')
-        self.nms_dist = config.get('nms_dist', 4)
-        self.conf_thresh = config.get('conf_thresh', 0.015)
+        self.nms_dist = config.get('nms_dist', config['nms_dist'])
+        self.conf_thresh = config.get('conf_thresh', config['conf_thresh'])
         self.heatmap = None
         self.heatmap_nms_batch = None
         pass

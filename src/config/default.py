@@ -5,13 +5,13 @@ _CN = CN()
 ##############  ↓  SuperPonit  ↓  ##############
 _CN.TM = CN()
 _CN.TM.SUPERPOINT = CN()
-_CN.TM.SUPERPOINT.NAME = 'SuperPointNet_gauss2'
+_CN.TM.SUPERPOINT.NAME =  'superpoint_glue' # 'SuperPointNet_gauss2'
 _CN.TM.SUPERPOINT.BLOCK_DIMS = [64, 64, 128, 128, 256, 256]  # c1, c2, c3, c4, c5, d1
 _CN.TM.SUPERPOINT.DET_DIM = 65
 _CN.TM.SUPERPOINT.OUT_NUM_POINTS = 64
 _CN.TM.SUPERPOINT.PATCH_SIZE = 5
 _CN.TM.SUPERPOINT.NMS_DIST = 2
-_CN.TM.SUPERPOINT.CONF_THRESH = 0.015
+_CN.TM.SUPERPOINT.CONF_THRESH = 0.004
 _CN.TM.SUPERPOINT.subpixel_channel = 1
 
 # 2. LoFTR-coarse module config

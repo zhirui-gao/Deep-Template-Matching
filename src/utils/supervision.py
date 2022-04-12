@@ -60,7 +60,10 @@ def spvs_coarse(data, config):
     mask = (mask_x * mask_y)# filter the out box points in image
     j_ids = data['hw1'][1]*y_ids + x_ids
     b_ids, _ = torch.where(pts_image[:, :, 0] >= 0) #
-    conf_matrix_gt[b_ids[mask], i_ids[mask], j_ids[mask]] = 1
+    try:
+        conf_matrix_gt[b_ids[mask], i_ids[mask], j_ids[mask]] = 1
+    except:
+        raise ('mask is not ok!')
     data.update({'conf_matrix_gt': conf_matrix_gt})
     # TODO:to check correspondence
     pass
