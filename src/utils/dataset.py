@@ -136,6 +136,44 @@ def read_megadepth_depth(path, pad_to=None):
     return depth
 
 
+# def read_linemod_gray(path, resize=[480, 640], df=None, padding=False, augment_fn=None):
+#     """
+#     Args:
+#         resize (h, w): the longer edge of resized images. None for no resize.
+#         padding (bool): If set to 'True', zero-pad resized images to squared size.
+#         augment_fn (callable, optional): augments images with pre-defined visual effects
+#     Returns:
+#         image (torch.tensor): (1, h, w)
+#         mask (torch.tensor): (h, w)
+#         scale (torch.tensor): [w/w_new, h/h_new]
+#     """
+#     # read image
+#     image = imread_gray(path, augment_fn, client=MEGADEPTH_CLIENT)
+#
+#     # resize image
+#     w, h = image.shape[1], image.shape[0]
+#     w_new, h_new = resize[1], resize[0]
+#     if w > resize[1]:
+#         w_new =
+
+
+    image = cv2.resize(image, (w_new, h_new))
+    scale = torch.tensor([w / w_new, h / h_new], dtype=torch.float)
+
+    if padding:  # padding
+        pad_to = max(h_new, w_new)
+        image, mask = pad_bottom_right(image, pad_to, ret_mask=True)
+    else:
+        mask = None
+
+    image = torch.from_numpy(image).float()[None] / 255  # (h, w) -> (1, h, w) and normalized
+    mask = torch.from_numpy(mask)
+
+    return image, mask, scale
+
+
+
+
 # --- ScanNet ---
 
 def read_scannet_gray(path, resize=(640, 480), augment_fn=None):

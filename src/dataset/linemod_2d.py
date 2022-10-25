@@ -8,54 +8,12 @@ import torch
 import torch.utils as utils
 from numpy.linalg import inv
 import cv2
+from PIL import Image
+import torchvision.transforms as transforms
 from src.utils.dataset import read_scannet_gray
 from src.utils.dataset import read_megadepth_gray,pad_bottom_right
-# class Linemod2dDataset(utils.data.Dataset):
-#     def __init__(self,
-#                  root_dir,
-#                  txt_path=None, # image id to train/test
-#                  mode='train',
-#                  augment_fn=None,
-#                  **kwargs):
-#         super().__init__()
-#         self.root_dir = root_dir
-#         self.mode = mode
-#         if txt_path:
-#             txt_path = os.path.join(txt_path, 'img_list.txt')
-#         self.txt_path = txt_path
-#         # prepare data_names
-#         if txt_path:
-#             self.data_names = np.loadtxt(txt_path, dtype=np.str_)
-#         else:
-#             # TODO: read all files in the root_dir
-#             pass
-#
-#
-#
-#         self.augment_fn = augment_fn if mode == 'train' else None
-#
-#     def __len__(self):
-#         return len(self.data_names)
-#
-#     def __getitem__(self, idx):
-#         # TODO: Support augmentation
-#         img_name = self.data_names[idx]
-#         img_name1 = osp.join(self.root_dir, 'img', img_name)
-#         img_name0 = osp.join(self.root_dir, 'template', img_name)
-#         print(img_name0)
-#         image0 = read_scannet_gray(img_name0, resize=(640, 480), augment_fn=None)
-#         #    augment_fn=np.random.choice([self.augment_fn, None], p=[0.5, 0.5]))
-#         image1 = read_scannet_gray(img_name1, resize=(640, 480), augment_fn=None)
-#         #    augment_fn=np.random.choice([self.augment_fn, None], p=[0.5, 0.5]))
-#
-#         data = {
-#             'image0': image0,  # (1, h, w)
-#             'image1': image1,
-#             'pair_id': idx,
-#         }
-#         return data
 
-class Linemod2dDataset(utils.data.Dataset):
+class SyntheticDataset(utils.data.Dataset):
     def __init__(self,
                  root_dir,
                  txt_path=None, # image id to train/test
@@ -64,57 +22,68 @@ class Linemod2dDataset(utils.data.Dataset):
                  augment_fn=None,
                  **kwargs):
         super().__init__()
+
         self.root_dir = root_dir
         self.mode = mode
+        if mode=='train':
+            self.mode = 'training'
+        elif mode == 'val':
+            self.mode = 'validation'
+
         self.img_resize = img_resize
-        if txt_path:
-            txt_path = os.path.join(txt_path, 'img_list.txt')
-        self.txt_path = txt_path
-        # prepare data_names
-        print('root_path', root_dir)
-        if txt_path:
-            self.data_names = np.loadtxt(txt_path, dtype=np.str_)
-        else:
-            # TODO: read all files in the root_dir
-            pass
 
-
+        fold_num = len(os.listdir(osp.join(root_dir,'trans',self.mode)))//2
+        self.data_names = [i for i in range(0, fold_num)]
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.transform = transforms.Compose([
+            transforms.ToTensor(),
+            normalize])
 
         self.augment_fn = augment_fn if mode == 'train' else None
 
     def __len__(self):
         return len(self.data_names)
 
+
+
     def __getitem__(self, idx):
         # TODO: Support augmentation
         img_name = self.data_names[idx]
-        # print(self.root_dir)
-        img_name0 = osp.join(self.root_dir, img_name, 'template.jpg')
-        img_name1 = osp.join(self.root_dir, img_name, 'localObjImg.jpg')
-        bias = np.loadtxt(os.path.join(self.root_dir, img_name, 'bias.txt'))
 
-        image0 = cv2.imread(img_name0, cv2.IMREAD_GRAYSCALE)
+        img_name0 = osp.join(self.root_dir,'images',self.mode, str(img_name)+'_template.png')
+        img_name1 = osp.join(self.root_dir,'images',self.mode, str(img_name)+'_homo.png') # _homo
 
-        image1, mask1, scale1 = read_megadepth_gray(
-            img_name1, self.img_resize, None, True, None)
+        trans = np.load(osp.join(self.root_dir,'trans',self.mode, str(img_name)+'_trans_homo.npy')) # _homo
+        points_template = np.load(osp.join(self.root_dir, 'points', self.mode, str(img_name) + '_template.npy'))
 
-        image0 = cv2.resize(image0, dsize=(0, 0), fx=1 / float(scale1[0]), fy=1 / float(scale1[1]))
-        if image0.shape[0]>self.img_resize or image0.shape[1]>self.img_resize:
-            image0 = image0[0:min(image0.shape[0],self.img_resize), 0:min(image0.shape[1],self.img_resize)]
 
-        image0, mask0 = pad_bottom_right(image0, self.img_resize, ret_mask=True)
-        image0 = cv2.Canny(image0, 30, 100)
-        image0 = torch.from_numpy(image0).float()[None] / 255  # (h, w) -> (1, h, w) and normalized
+        image0 = cv2.imread(img_name0, cv2.IMREAD_GRAYSCALE) #tamplate
+        image1 = cv2.imread(img_name1, cv2.IMREAD_GRAYSCALE)
+
+
+        image1_rgb = cv2.imread(img_name1)
+        image1_rgb = cv2.cvtColor(image1_rgb, cv2.COLOR_BGR2RGB)
+
+
+        if image0.shape[0]>image1.shape[0] or image0.shape[1]>image1.shape[1]:
+            image0 = image0[0:min(image0.shape[0],image1.shape[0]), 0:min(image0.shape[1],image1.shape[1])]
+        assert(image0.shape[0]<=image1.shape[0] and image0.shape[1]<=image1.shape[1])
         data = {
-            'image0': image0,  # (1, h, w)
+            'image0': image0,  # ( h, w)
             'image1': image1,
+            # 'image0_raw': image0_raw,
+            # 'image1_raw': image1_raw,
+            'image1_rgb': image1_rgb, # [3,h,w]
             'pair_id': idx,
-            'dataset_name': 'linemod_2d',
-            'scale': scale1,
-            'bias': bias,
+            'dataset_name': 'synthetic',
+            'bias': [0,0],
+            'trans': trans,
+            'points_template': points_template,
+            # 'points_homo': points_homo,
             'pair_names': (img_name0,
                            img_name1)
         }
-        if mask1 is not None:  # img_padding is True
-            data.update({'mask1': mask1})
         return data
+
+

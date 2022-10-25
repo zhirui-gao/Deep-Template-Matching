@@ -40,7 +40,8 @@ class LinearAttention(Module):
 
         v_length = values.size(1)
         values = values / v_length  # prevent fp16 overflow
-        KV = torch.einsum("nshd,nshv->nhdv", K, values)  # (S,D)' @ S,V
+        KV = torch.einsum("nshd,nshv->nhdv"
+                          "", K, values)  # (S,D)' @ S,V
         Z = 1 / (torch.einsum("nlhd,nhd->nlh", Q, K.sum(dim=1)) + self.eps)
         queried_values = torch.einsum("nlhd,nhdv,nlh->nlhv", Q, KV, Z) * v_length
 
@@ -72,6 +73,42 @@ class FullAttention(Module):
 
         # Compute the attention and the weighted average
         softmax_temp = 1. / queries.size(3)**.5  # sqrt(D)
+        A = torch.softmax(softmax_temp * QK, dim=2)
+        if self.use_dropout:
+            A = self.dropout(A)
+
+        queried_values = torch.einsum("nlsh,nshd->nlhd", A, values)
+
+        return queried_values.contiguous()
+
+
+
+class GeoAttention(Module):
+    # only for self attention
+    def __init__(self, use_dropout=False, attention_dropout=0.1):
+        super().__init__()
+        self.use_dropout = use_dropout
+        self.dropout = Dropout(attention_dropout)
+
+    def forward(self, QK,queries,values, q_mask=None, kv_mask=None):
+        """ Multi-head scaled dot-product attention, a.k.a full attention.
+        Args:
+            QK: [N L S H] # coodinates for self-attention S equals L
+            queries: [N, L, D]
+            values: [N, L, D]
+            q_mask: [N, L]
+            kv_mask: [N, S]
+        Returns:
+            queried_values: (N, L, H, D)
+        """
+
+        # Compute the unnormalized attention and apply the masks
+
+        if kv_mask is not None:
+            QK.masked_fill_(~(q_mask[:, :, None, None] * kv_mask[:, None, :, None]), float('-inf'))
+
+        # Compute the attention and the weighted average
+        softmax_temp = 1. /values.size(3) **.5  # sqrt(D)  D is the muti-head dimession
         A = torch.softmax(softmax_temp * QK, dim=2)
         if self.use_dropout:
             A = self.dropout(A)

@@ -15,32 +15,24 @@ def parse_args():
     # check documentation: https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#trainer-flags
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--data_cfg_path', type=str, default='./config/data_circle.py', help='data config path')
+        '--data_cfg_path', type=str, default='./config/Synthetic_test.py', help='data config path') # Synthetic_test
     parser.add_argument(
         '--main_cfg_path', type=str, default='./config/model_tm.py', help='main config path')
     parser.add_argument(
-        '--ckpt_path_backbone', type=str, default='./pretrained/superPointNet_170000_checkpoint.pth.tar',
+        '--ckpt_path_backbone', type=str, default='./pretrained/superpoint_v1.pth',
         help='pretrained checkpoint_backbone path')
     # end to end train
-    parser.add_argument(
-        '--ckpt_path', type=str, default='./logs/server/logs/tb_logs/linemod2d--bs=8/version_0/checkpoints/epoch=43-prec_dis_errs@1=0.115-prec_dis_errs@2=0.370-prec_dis_errs@3=0.536.ckpt',
-        help='pretrained checkpoint path')
     # fix backbone
-    # parser.add_argument(
-    #     '--ckpt_path', type=str, default='./logs/tb_logs/linemod2d--bs=2/version_1/checkpoints/epoch=29-prec_dis_errs@1=0.092-prec_dis_errs@2=0.297-prec_dis_errs@3=0.495.ckpt',
-    #     help='pretrained checkpoint path')
-
-
-
-
-
-
+    parser.add_argument(
+        '--ckpt_path', type=str,
+        default='',
+        help='pretrained checkpoint path')
     parser.add_argument(
         '--dump_dir', type=str, default=None, help="if set, the matching results will be dump to dump_dir")
     parser.add_argument(
         '--profiler_name', type=str, default=None, help='options: [inference, pytorch], or leave it unset')
     parser.add_argument(
-        '--batch_size', type=int, default=1, help='batch_size per gpu')
+        '--batch_size', type=int, default=4, help='batch_size per gpu')
     parser.add_argument(
         '--num_workers', type=int, default=1)
     parser.add_argument(
@@ -69,7 +61,7 @@ if __name__ == '__main__':
 
     # lightning module
     profiler = build_profiler(args.profiler_name)
-    model = PL_Tm(config, pretrained_ckpt_backbone=args.ckpt_path_backbone, profiler=profiler)
+    model = PL_Tm(config, pretrained_ckpt_backbone=args.ckpt_path_backbone,pretrain_ckpt = args.ckpt_path ,profiler=profiler, training=False)
     loguru_logger.info(f"LoFTR-lightning initialized!")
 
     # lightning data

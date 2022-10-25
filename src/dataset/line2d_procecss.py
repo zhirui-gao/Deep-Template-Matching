@@ -41,7 +41,7 @@ def create_dir(path):
 #     bias = np.array([min_x-padding, min_y-padding])
 #     return cropped, bias
 
-def crop_image(image, padding=20):
+def crop_image(image, padding=50):
     """
     crop the black block
     :param image:(H,W)
@@ -66,7 +66,7 @@ def process_template(data_dir,image_id):
     image_path = os.path.join(image_dir, 'matchedMask.jpg')
     img_mask = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
-    img_mask ,bias = crop_image(img_mask, padding=20)
+    img_mask ,bias = crop_image(img_mask)
     img_mask = cv2.cvtColor(img_mask, cv2.COLOR_BGR2RGB)
     np.savetxt(os.path.join(image_dir, 'bias.txt'), bias,fmt='%i')
     # plt.imshow(img_mask)
@@ -171,7 +171,7 @@ def crop_aug_dir(raw_img_dir, aug_imgs_dir, cut_ratio_max=0.7):
     cnt = 0
     for aug_list_dir in tqdm(wait_aug_lists):
         cnt = cnt + 1
-        if cnt >10:
+        if cnt > 10:
             break
         img = (os.path.join(raw_img_dir, aug_list_dir, 'localObjImg.jpg'))
         if os.path.isfile(img):
@@ -298,11 +298,12 @@ def data_augument_one():
 
 
 
-# data_dir = "/home/gzr/Data/linemod_2d/DATA/steel_test"
-# for i in tqdm(range(8156,8166)):
-#     image_id = f'{i:05d}'
-#     print(image_id,'\t')
-#     process_template(data_dir,image_id)
+data_dir = "/home/gzr/Data/linemod_2d/DATA/steel"
+for i in tqdm(range(0,8166)):
+
+    image_id = f'{i:05d}'
+    print(image_id,'\t')
+    process_template(data_dir,image_id)
 
 # rotation
-data_augument_both()
+# data_augument_both()

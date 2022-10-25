@@ -44,6 +44,8 @@ from pathlib import Path
 import torch
 from torch import nn
 import numpy as np
+from einops.einops import rearrange
+
 def simple_nms(scores, nms_radius: int):
     """ Fast Non-maximum suppression to remove nearby points """
     assert(nms_radius >= 0)
@@ -98,6 +100,7 @@ def sample_descriptors(keypoints, descriptors, s: int = 8):
         descriptors, keypoints.view(b, 1, -1, 2), mode='bilinear', **args)
     descriptors = torch.nn.functional.normalize(
         descriptors.reshape(b, c, -1), p=2, dim=1)
+
     return descriptors
 
 
@@ -117,124 +120,127 @@ class SuperPoint_glue(nn.Module):
         'remove_borders': 2,
     }
 
-    def __init__(self, config):
+    def __init__(self, config, early_return=False):
         super().__init__()
         self.config = {**self.default_config, **config}
 
         self.relu = nn.ReLU(inplace=True)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         c1, c2, c3, c4, c5 = 64, 64, 128, 128, 256
+        if early_return:
+            self.conv1a = nn.Conv2d(1, c1, kernel_size=3, stride=1, padding=1)
+            self.conv1b = nn.Conv2d(c1, c1, kernel_size=3, stride=1, padding=1)
+            self.conv2a = nn.Conv2d(c1, c2, kernel_size=3, stride=1, padding=1)
+            self.conv2b = nn.Conv2d(c2, c2, kernel_size=3, stride=1, padding=1)
+        else:
+            self.conv1a = nn.Conv2d(1, c1, kernel_size=3, stride=1, padding=1)
+            self.conv1b = nn.Conv2d(c1, c1, kernel_size=3, stride=1, padding=1)
+            self.conv2a = nn.Conv2d(c1, c2, kernel_size=3, stride=1, padding=1)
+            self.conv2b = nn.Conv2d(c2, c2, kernel_size=3, stride=1, padding=1)
+            self.conv3a = nn.Conv2d(c2, c3, kernel_size=3, stride=1, padding=1)
+            self.conv3b = nn.Conv2d(c3, c3, kernel_size=3, stride=1, padding=1)
+            self.conv4a = nn.Conv2d(c3, c4, kernel_size=3, stride=1, padding=1)
+            self.conv4b = nn.Conv2d(c4, c4, kernel_size=3, stride=1, padding=1)
+            self.convDa = nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
+            self.convDb = nn.Conv2d(
+                c5, self.config['block_dims'][-1],
+                kernel_size=1, stride=1, padding=0)
 
-        self.conv1a = nn.Conv2d(1, c1, kernel_size=3, stride=1, padding=1)
-        self.conv1b = nn.Conv2d(c1, c1, kernel_size=3, stride=1, padding=1)
-        self.conv2a = nn.Conv2d(c1, c2, kernel_size=3, stride=1, padding=1)
-        self.conv2b = nn.Conv2d(c2, c2, kernel_size=3, stride=1, padding=1)
-        self.conv3a = nn.Conv2d(c2, c3, kernel_size=3, stride=1, padding=1)
-        self.conv3b = nn.Conv2d(c3, c3, kernel_size=3, stride=1, padding=1)
-        self.conv4a = nn.Conv2d(c3, c4, kernel_size=3, stride=1, padding=1)
-        self.conv4b = nn.Conv2d(c4, c4, kernel_size=3, stride=1, padding=1)
-
-        self.convPa = nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
-        self.convPb = nn.Conv2d(c5, 65, kernel_size=1, stride=1, padding=0)
-
-        self.convDa = nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
-        self.convDb = nn.Conv2d(
-            c5, self.config['block_dims'][-1],
-            kernel_size=1, stride=1, padding=0)
-
-        # path = Path(__file__).parent / 'weights/superpoint_v1.pth'
+        # path = './pretrained/superpoint_v1.pth'
         # self.load_state_dict(torch.load(str(path)))
 
         mk = self.config['out_num_points']
         if mk == 0 or mk < -1:
             raise ValueError('\"out_num_points\" must be positive or \"-1\"')
 
-        print('Loaded SuperPoint model')
 
-    def forward(self, data_image, choose=True):
+    def forward(self, data_image, c_points=None, choose=True, early_return=False):
         """ Compute keypoints, scores, descriptors for image """
         # Shared Encoder
         x = self.relu(self.conv1a(data_image))
         x = self.relu(self.conv1b(x))
+        feature_fine_1 = x
+
         x = self.pool(x)
         x = self.relu(self.conv2a(x))
         x = self.relu(self.conv2b(x))
+
+        feature_fine = x
+        if early_return:
+            descriptors_fine = torch.nn.functional.normalize(feature_fine, p=2, dim=1)  # [bs,C,h,w]
+            descriptors_fine = rearrange(descriptors_fine, 'n c h w -> n (h w) c')
+            return descriptors_fine
+        # visualize_feature_map(data_image,feature_fine,'./save_imgs_plot/')
+
         x = self.pool(x)
         x = self.relu(self.conv3a(x))
         x = self.relu(self.conv3b(x))
         x = self.pool(x)
         x = self.relu(self.conv4a(x))
         x = self.relu(self.conv4b(x))
-
-        # Compute the dense keypoint scores
-        cPa = self.relu(self.convPa(x))
-        scores = self.convPb(cPa)
-        scores = torch.nn.functional.softmax(scores, 1)[:, :-1]
-        b, _, h, w = scores.shape
-        scores = scores.permute(0, 2, 3, 1).reshape(b, h, w, 8, 8)
-        scores = scores.permute(0, 1, 3, 2, 4).reshape(b, h*8, w*8)
-
+        b, _, h, w = x.shape
+        # keypoints = []
+        descriptors_coarse = []
+        batch_size = data_image.shape[0]
+        # H, W = h * 4, w * 4  # 8->2
+        # grid = np.mgrid[:H, 0:W]
+        # grid = grid.reshape((2, -1))
+        # grid = grid.transpose(1, 0)
+        # grid = grid[:, [0, 1]]
+        # pts_int_b = torch.tensor(grid).to(data_image.device).float()
         if choose:
-            scores = simple_nms(scores, self.config['nms_dist'])
-            # Extract keypoints
-            keypoints = [
-                torch.nonzero(s > self.config['conf_thresh'])
-                for s in scores]
-            scores = [s[tuple(k.t())] for s, k in zip(scores, keypoints)]
-
-            # Discard keypoints near the image borders
-            keypoints, scores = list(zip(*[
-                remove_borders(k, s, self.config['remove_borders'], h*8, w*8)
-                for k, s in zip(keypoints, scores)]))
-
-            # Keep the k keypoints with highest score
-            if self.config['out_num_points'] >= 0:
-                keypoints, scores = list(zip(*[
-                    top_k_keypoints(k, s, self.config['out_num_points'], h*8, w*8)
-                    for k, s in zip(keypoints, scores)]))
-
-            # Convert (h, w) to (x, y)
-            keypoints = [torch.flip(k, [1]).float() for k in keypoints]
-            scores = list(scores)
-
+            assert self.config['out_num_points'] == c_points.shape[1]  # c_points [bs,N,2]
+            # for i in range(batch_size):
+            #     # tensor [N, 2(x,y)]
+            #     keypoints.append(pts_int_b[:, [1, 0]]) # TODO：speed-up
             # Compute the dense descriptors
             cDa = self.relu(self.convDa(x))
             descriptors = self.convDb(cDa)
-            descriptors = torch.nn.functional.normalize(descriptors, p=2, dim=1)
-
-            # Extract descriptors
-            descriptors = [sample_descriptors(k[None], d[None], 8)[0]
-                           for k, d in zip(keypoints, descriptors)]
-            pts_int = torch.stack(keypoints, dim=0)
-            scores = torch.stack(scores, dim=0)
-            pts_desc = torch.stack(descriptors, dim=0).transpose(1, 2)  # [bs,l,C]
-        else:
-            keypoints = []
-            batch_size = data_image.shape[0]
-            cell_size = int(8)
-            H, W = h*8, w*8
-            grid = np.mgrid[:H, 0:W]
-            grid = grid.reshape((2, -1))
-            grid = grid.transpose(1, 0)
-            grid = grid[:, [0, 1]]
-            pts_int_b = torch.tensor(grid).to(data_image.device).float()
+            descriptors = torch.nn.functional.normalize(descriptors, p=2, dim=1) #[ba,C,h,w]【60，80】
             for i in range(batch_size):
-                pts_int_b = pts_int_b[:, [1, 0]]  # tensor [N, 2(x,y)]
-                keypoints.append(pts_int_b)
-            scores = list(scores)
+                b_x = torch.flatten(c_points[i][:, 0]).long()
+                b_y = torch.flatten(c_points[i][:, 1]).long()
+                descriptor_coarse = descriptors[i][:,b_y,b_x]# [C,l]
+                descriptors_coarse.append(descriptor_coarse)
+
+            descriptors_fine = torch.nn.functional.normalize(feature_fine, p=2, dim=1)  # [bs,C,h,w]
+            descriptors_fine_1 = torch.nn.functional.normalize(feature_fine_1, p=2, dim=1)  # [bs,C,h,w]
+
+
+            descriptors_fine = rearrange(descriptors_fine, 'n c h w -> n (h w) c')
+            descriptors_fine_1 = rearrange(descriptors_fine_1, 'n c h w -> n (h w) c')
+
+            pts_int_c = c_points
+            # pts_int_f = torch.stack(keypoints, dim=0)
+            descriptors_coarse = torch.stack(descriptors_coarse, dim=0).transpose(1, 2)  # [bs,l,C]
+
+        else:
+            keypoints_c = []
+            grid_c = np.mgrid[:h, 0:w]
+            grid_c = grid_c.reshape((2, -1))
+            grid_c = grid_c.transpose(1, 0)
+            grid_c = grid_c[:, [0, 1]]
+            pts_int_b_c = torch.tensor(grid_c).to(data_image.device).float()
+
+            for i in range(batch_size):
+                # keypoints.append(pts_int_b[:, [1, 0]])
+                keypoints_c.append(pts_int_b_c[:, [1, 0]])# tensor [N, 2(x,y)]
+
             # Compute the dense descriptors
             cDa = self.relu(self.convDa(x))
             descriptors = self.convDb(cDa)
-            descriptors = torch.nn.functional.normalize(descriptors, p=2, dim=1)
-            descriptors = [sample_descriptors(k[None], d[None], 8)[0]
-                           for k, d in zip(keypoints, descriptors)]
-
-            pts_int = torch.stack(keypoints, dim=0)
-            scores = torch.stack(scores, dim=0)
-            pts_desc = torch.stack(descriptors, dim=0).transpose(1, 2)  # [bs,l,C]
+            descriptors = torch.nn.functional.normalize(descriptors, p=2, dim=1)  # [bs,C,h,w]
+            descriptors_coarse = rearrange(descriptors, 'n c h w -> n (h w) c')
+            pts_int_c = torch.stack(keypoints_c, dim=0)
+            # pts_int_f = torch.stack(keypoints, dim=0)
+            descriptors_fine = torch.nn.functional.normalize(feature_fine, p=2, dim=1)  # [bs,C,h,w]
+            descriptors_fine_1 = torch.nn.functional.normalize(feature_fine_1, p=2, dim=1)  # [bs,C,h,w]
+            descriptors_fine = rearrange(descriptors_fine, 'n c h w -> n (h w) c')
+            descriptors_fine_1 = rearrange(descriptors_fine_1, 'n c h w -> n (h w) c')
         return {
-            'pts_int': pts_int, #  [bs,l,2]
-            'pts_offset':torch.zeros_like(pts_int), #  [bs,l,2]
-            'scores': scores, # [bs,l]
-            'pts_desc': pts_desc # [bs,l,C]
+            'desc_f_2': descriptors_fine, # [bs,L,C],
+            'desc_f_1': descriptors_fine_1, # [bs,L,C],
+            'desc_c': descriptors_coarse, #[bs,l,C]
+            'pts_int_c': pts_int_c,#  [bs,l,2]
+            # 'pts_int_f': pts_int_f # [bs,L,2]
         }

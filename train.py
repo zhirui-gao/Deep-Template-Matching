@@ -1,5 +1,6 @@
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import math
 import argparse
 import pprint
@@ -22,7 +23,7 @@ def parse_args():
     # check documentation: https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#trainer-flags
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--data_cfg_path', type=str, default='./config/linemod2d_train.py', help='data config path')
+        '--data_cfg_path', type=str, default='./config/Synthetic_train.py', help='data config path') # linemod2d_train
     parser.add_argument(
         '--main_cfg_path', type=str, default='./config/model_tm.py', help='main config path')
     parser.add_argument(
@@ -38,7 +39,6 @@ def parse_args():
     parser.add_argument(
         '--ckpt_path', type=str, default='',
         help='pretrained checkpoint path')
-
     parser.add_argument(
         '--disable_ckpt', action='store_true',
         help='disable checkpoint saving (useful for debugging).')
@@ -78,19 +78,6 @@ def main():
 
     loguru_logger.info(f"TM LightningModule initialized!")
 
-    # test
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # model = model.to(device)
-    # batch = {}
-    # image0 = torch.zeros((2, 1, 120, 160)).to(device)
-    # image1 = torch.zeros((2, 1, 120, 160)).to(device)
-    # batch["image0"] = image0
-    # batch["image1"] = image1
-    #
-    # model(batch)
-
-
-
     # lightning data
     data_module = MultiSceneDataModule(args, config)
     loguru_logger.info(f"TM DataModule initialized!")
@@ -111,13 +98,13 @@ def main():
     # }
     # logger.experiment.add_graph(model, data)
 
-
     # Callbacks
     # TODO: update ModelCheckpoint to monitor multiple metrics
-    ckpt_callback = ModelCheckpoint(monitor='prec_dis_errs@2', verbose=True, save_top_k=3, mode='max',
+    ckpt_callback = ModelCheckpoint(monitor='auc@3', verbose=True, save_top_k=3, mode='max',
                                     save_last=True,
                                     dirpath=str(ckpt_dir),
-                                    filename='{epoch}-{prec_dis_errs@1:.3f}-{prec_dis_errs@2:.3f}-{prec_dis_errs@3:.3f}')
+                                    filename='{epoch}-{auc@1:.3f}-{auc@3:.3f}-{auc@5:.3f}-{auc@10:.3f}')
+
     lr_monitor = LearningRateMonitor(logging_interval='step')
     callbacks = [lr_monitor]
     if not args.disable_ckpt:
@@ -132,6 +119,7 @@ def main():
         gradient_clip_val=config.TRAINER.GRADIENT_CLIPPING,
         callbacks=callbacks,
         logger=logger,
+        #resume_from_checkpoint=args.ckpt_path,
         sync_batchnorm=config.TRAINER.WORLD_SIZE > 0,
         replace_sampler_ddp=False,  # use custom sampler
         reload_dataloaders_every_epoch=False,  # avoid repeated samples!
@@ -144,5 +132,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# --exp_name=1 --gpus=1 --accelerator="ddp" --num_node=1 --batch_size=2 --num_workers=4 --pin_memory=true --check_val_every_n_epoch=2 --log_every_n_steps=100 --flush_logs_every_n_steps=100 --limit_val_batches=1. --num_sanity_val_steps=0 --benchmark=True --max_epochs=30
