@@ -9,7 +9,7 @@ from src.utils.profiler import build_profiler
 from src.lightning.data import MultiSceneDataModule
 from src.lightning.lightning_tm import PL_Tm
 
-
+# Learning Accurate Template Matching with Differentiable Coarse-to-fine Correspondence Refinement
 def parse_args():
     # init a costum parser which will be added into pl.Trainer parser
     # check documentation: https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#trainer-flags
