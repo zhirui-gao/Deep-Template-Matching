@@ -1,20 +1,23 @@
-# Deep-Template-Matching
-Learning Accurate Template Matching with Differentiable Coarse-to-fine Correspondence Refinement
+# Deep-Template-Matching 🌟  
+**Learning Accurate Template Matching with Differentiable Coarse-to-fine Correspondence Refinement**
 
-Official implementation of Deep-Template-Matching (Learning Accurate Template Matching with Differentiable Coarse-to-fine Correspondence Refinement) using pytorch ([pytorch-lightning](https://github.com/Lightning-AI/lightning))
-This paper has published in [CVMJ 2024](https://www.springer.com/journal/41095) and can be founded [here](https://link.springer.com/article/10.1007/s41095-023-0333-9). If you find this repository useful to your research or work, it is really appreciated to star this repository and cite our papers [here](#Reference). :sparkles:
+🚀 Official implementation of Deep-Template-Matching (Learning Accurate Template Matching with Differentiable Coarse-to-fine Correspondence Refinement) using pytorch ([pytorch-lightning](https://github.com/Lightning-AI/lightning))
+✨ This paper has published in [CVMJ 2024](https://www.springer.com/journal/41095) and can be founded [here](https://link.springer.com/article/10.1007/s41095-023-0333-9). If you find this repository useful to your research or work, it is really appreciated to star this repository and cite our papers [here](#Reference). :sparkles:
 
-## Abstract
+---
+
+## 🎯 Abstract  
 Template matching is a fundamental task in computer vision and has been studied for decades. It plays an essential role in the manufacturing industry for estimating the poses of different parts, facilitating downstream tasks such as robotic grasping. Existing works fail when the template and source images are in different modalities, cluttered backgrounds or weak textures. They also rarely consider geometric transformations via homographies, which commonly existed even for planar industrial parts. To tackle the challenges, we propose an accurate template matching method based on differentiable coarse-to-fine correspondence refinement. Considering the domain gap between the mask template and the grayscale image, we leverage an edge-aware module to eliminate the difference for robust matching. Based on coarse correspondences with novel structure-aware information by transformers, an initial warping transformation is estimated and performed as a preliminary result. After the initial alignment, we execute a refinement network on reference and aligned images to obtain sub-pixel level correspondences and thus obtain the final geometric transformation. Comprehensive evaluations show that our method significantly outperforms state-of-the-art methods and baselines, with good generalization abilities and visually plausible results even on unseen real data.
 
+---
 
-## Introduction
+## 🔑 Introduction
 we propose an accurate template matching method based on differentiable coarse-to-fine correspondence refinement. Considering the domain gap between the mask template and the grayscale image, we leverage an edge-aware module to eliminate the difference for robust matching. Based on coarse correspondences with novel structure-aware information by transformers, an initial warping transformation is estimated and performed as a preliminary result. After the initial alignment, we execute a refinement network on reference and aligned images to obtain sub-pixel level correspondences and thus obtain the final geometric transformation. 
 
 ![image](https://github.com/zhirui-gao/Deep-Template-Matching/blob/master/teaser.png)
 
 
-## Installation
+## ✨ Installation
 ```
 pip -r requirements.txt
 ```
@@ -30,7 +33,7 @@ The test images are in ```./data/test_case``` and the pretraind weight file can 
 
 
 
-## Training
+## ✨ Training
 run command ```./scripts/train.sh```. The traning files are saved in direactory ```./logs```.
 ### 0. Data preparation
 Please modify the paths of the training dataset  in the (```./config/Synthetic_train.py```). 
@@ -105,7 +108,7 @@ The detail files of training are saved in the ```./logs``` folder
  ```
 1. Run command ```./scripts/test.sh```
 
-## Demos
+## 🚀 Demos
 
 ### Single-object demo
 
@@ -114,7 +117,7 @@ The detail files of training are saved in the ```./logs``` folder
 ### Multi-objects demo
 ![s](https://github.com/zhirui-gao/Deep-Template-Matching/blob/master/multi_object.gif)
 
-## Reference
+## 📚 Reference 
 If you find this code useful for your research, please use the following BibTeX entry.
 ```
 @article{gao2024learning,
