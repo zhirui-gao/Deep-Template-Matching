@@ -1,8 +1,10 @@
 # Deep-Template-Matching 🌟  
 **Learning Accurate Template Matching with Differentiable Coarse-to-fine Correspondence Refinement**
 
-🚀 Official implementation of Deep-Template-Matching (Learning Accurate Template Matching with Differentiable Coarse-to-fine Correspondence Refinement) using pytorch ([pytorch-lightning](https://github.com/Lightning-AI/lightning))
-✨ This paper has published in [CVMJ 2024](https://www.springer.com/journal/41095) and can be founded [here](https://link.springer.com/article/10.1007/s41095-023-0333-9). If you find this repository useful to your research or work, it is really appreciated to star this repository and cite our papers [here](#Reference). :sparkles:
+🚀 Official implementation of Deep-Template-Matching (Learning Accurate Template Matching with Differentiable Coarse-to-fine Correspondence Refinement) using pytorch ([pytorch-lightning](https://github.com/Lightning-AI/lightning))  
+
+
+✨ This paper has published in [CVMJ 2024](https://www.springer.com/journal/41095) and can be founded [here](https://link.springer.com/article/10.1007/s41095-023-0333-9). If you find this repository useful to your research or work, it is really appreciated to star this repository and cite our papers [here](# 📚 Reference). :sparkles:
 
 ---
 
